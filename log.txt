@@ -1,0 +1,10 @@
+------------
+Time log for individual project
+------------
+
+------------
+2023-09-02 10:20PM - 10:40PM
+Two datasets selected from https://data.world/ that are related to COVID-19
+https://data.world/markmarkoh/coronavirus-data
+https://data.world/covid-19-data-resource-hub/covid-19-activity-location-population-table
+------------
