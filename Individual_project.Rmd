@@ -1,0 +1,54 @@
+---
+title: "Individual Project"
+author: "Zitan Wang"
+date: "2023-09-09"
+output: html_document
+---
+
+project description:
+This project aims to visualize the data related to the COVID-19. current, the plan involves creating:
+1) two global maps accompanied with adjustable timeline to display the monthly cases of death and new cases for each nation.
+https://rviews.rstudio.com/2019/10/09/building-interactive-world-maps-in-shiny/#:~:text=Creating%20an%20interactive%20world%20map&text=The%20inputs%20to%20this%20function,the%20aesthetics%20of%20the%20plot.
+2) several scatter plots exploring the degree of different actions taken by each government and the correlated new cases/population proportion in 2021.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#importing libraries
+library(dplyr)
+library(magrittr)
+library(tidyr)
+library(formatR)
+library(stringr)
+```
+
+```{r}
+#reading in all datasets
+world_covid_data <- read.csv('./Dataset/full_data.csv')
+world_pop_data <- read.csv('./Dataset/master_location_pop_table.csv')
+gov_re_data <- read.csv('./Dataset/OxCGRT_latest.csv')
+
+#processing world_pop_data
+world_pop_data_clean <- world_pop_data %>%
+ #select(-c(country_alpha_3_code:county_fips_number, data_source_name, geo_location)) %>%
+  group_by(country_short_name) %>%
+  summarise(geo_latitude = mean(geo_latitude), 
+            geo_longitude = mean(geo_longitude), 
+            geo_region_population_count = sum(geo_region_population_count))
+# Only kept 'geo_latitude', 'geo_longitude' and 'geo_region_population_count', all changed to national level. Other data excluded.
+
+#processing world_covid_data
+colnames(world_covid_data)
+world_covid_data_clean <- world_covid_data %>%
+  mutate(month = paste(substr(date, 1, 4), 
+                      substr(date, 6, 7), 
+                      sep = '')) %>%
+  group_by(location, date) %>%
+  reframe(monthly_new_cases = sum(new_cases, na.rm = TRUE), 
+          monthly_new_deaths = sum(new_deaths, na.rm = TRUE))
+# new cases amd new death are adjusted to monthly level with 'location' and 'month', other numbers all excluded.
+# this data frame still contain data at levels other than national. These data will keep remain here until I match the 'location' in in this data frame with 'country_short_name' in world_pop_data_clean. 'location' not included in 'country_short_name' will be excluded since latitude and longitude are required to plot the global map.
+```
+
+```{r}
+
+```
