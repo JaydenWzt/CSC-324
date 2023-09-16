@@ -1,0 +1,20 @@
+Time	Descrpition
+2023-09-02 10:20PM - 10:40PM	"Two datasets selected from https://data.world/ that are related to COVID-19
+
+https://data.world/markmarkoh/coronavirus-data/workspace/file?filename=full_data.csv 
+//or at https://data.world/markmarkoh/coronavirus-data
+
+https://data.world/covid-19-data-resource-hub/covid-19-activity-location-population-table/workspace/file?filename=Master+Location+Pop+Table.csv
+//or at https://data.world/covid-19-data-resource-hub/covid-19-activity-location-population-table"
+2023-09-02 10:20PM - 10:40PM	"Another dataset related to COVID-19 was selected from https://data.world/
+
+https://data.world/jiraphan-masuk/coronavirus-government-response-tracker/workspace/file?filename=OxCGRT_latest.csv
+//or at https://data.world/jiraphan-masuk/coronavirus-government-response-tracker
+
+Then, all three =datasets are imported into R and two of them processed to get rid of most of the useless data."
+2023-09-15 06:30PM - 07:30PM	"All three data sets cleans to four new ones. Then, all data sets are filtered by country so to make that datasets that are to be combined have an identical country"
+	
+	
+	
+	
+	

@@ -19,36 +19,79 @@ library(magrittr)
 library(tidyr)
 library(formatR)
 library(stringr)
+library(arsenal)
 ```
 
+reading in all datasets
 ```{r}
-#reading in all datasets
 world_covid_data <- read.csv('./Dataset/full_data.csv')
 world_pop_data <- read.csv('./Dataset/master_location_pop_table.csv')
 gov_re_data <- read.csv('./Dataset/OxCGRT_latest.csv')
+```
 
+Clean all three data sets and make new ones, preparing to combine them
+```{r}
 #processing world_pop_data
 world_pop_data_clean <- world_pop_data %>%
  #select(-c(country_alpha_3_code:county_fips_number, data_source_name, geo_location)) %>%
   group_by(country_short_name) %>%
   summarise(geo_latitude = mean(geo_latitude), 
             geo_longitude = mean(geo_longitude), 
-            geo_region_population_count = sum(geo_region_population_count))
+            geo_region_population_count = sum(geo_region_population_count)) %>%
+  rename('country' = 'country_short_name')
 # Only kept 'geo_latitude', 'geo_longitude' and 'geo_region_population_count', all changed to national level. Other data excluded.
 
 #processing world_covid_data
-colnames(world_covid_data)
-world_covid_data_clean <- world_covid_data %>%
+#colnames(world_covid_data)
+
+total_covid_death <- world_covid_data %>%
+  group_by(location) %>%
+  reframe(total_deaths = sum(new_deaths, na.rm = TRUE)) %>%
+  rename('country' = 'location')
+total_covid_death[total_covid_death == 0] <- NA
+# the total number of death for each country
+
+monthly_new_covid <- world_covid_data %>%
   mutate(month = paste(substr(date, 1, 4), 
                       substr(date, 6, 7), 
                       sep = '')) %>%
-  group_by(location, date) %>%
+  group_by(location, month) %>%
   reframe(monthly_new_cases = sum(new_cases, na.rm = TRUE), 
-          monthly_new_deaths = sum(new_deaths, na.rm = TRUE))
-# new cases amd new death are adjusted to monthly level with 'location' and 'month', other numbers all excluded.
+          monthly_new_deaths = sum(new_deaths, na.rm = TRUE)) %>%
+  rename('country' = 'location')
+monthly_new_covid[monthly_new_covid == 0] <- NA
+# new cases and new death are adjusted to monthly level with 'location' and 'month', other numbers all excluded.
 # this data frame still contain data at levels other than national. These data will keep remain here until I match the 'location' in in this data frame with 'country_short_name' in world_pop_data_clean. 'location' not included in 'country_short_name' will be excluded since latitude and longitude are required to plot the global map.
+
+#processing gov_re_data
+gov_policies_eval <- gov_re_data %>%
+  group_by(CountryName) %>%
+  reframe(testing_policy = mean(H2_Testing.policy, na.rm = TRUE), 
+          vaccination_policy = mean(H7_Vaccination.policy, na.rm = TRUE)) %>%
+  rename('country' = 'CountryName')
+gov_policies_eval[gov_policies_eval == 0] <- NA
+# I arbitrarily choose only to look at the effects of testing policy and vaccination policy for each country.
+
+#All 'country' in each data frame should match, not existed in world_pop_data_clean will be excluded
+total_covid_death <- total_covid_death %>%
+  filter(country %in% world_pop_data_clean$country)
+
+monthly_new_covid <- monthly_new_covid %>%
+  filter(country %in% world_pop_data_clean$country)
+
+gov_policies_eval <- gov_policies_eval %>%
+  filter(country %in% world_pop_data_clean$country)
+
+world_pop_data_clean <- world_pop_data_clean %>%
+  filter(country %in% gov_policies_eval$country) %>%
+  filter(country %in% monthly_new_covid$country) %>%
+  filter(country %in% total_covid_death$country)
 ```
 
+Combine different data sets
 ```{r}
+# All the data points are is in terms of people will be divided by the population at that country to get the ratio.
+
+# processing gov_re_data and total_covid_death will be combined based on country name to see if there exists correlation between policies taken and the actual results(evaluated by number of death)
 
 ```
