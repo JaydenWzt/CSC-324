@@ -1,0 +1,273 @@
+---
+title: "Individual Project"
+author: "Zitan Wang"
+date: "2023-09-09"
+output: html_document
+---
+
+project description:
+This project aims to visualize the data related to the COVID-19. current, the plan involves creating:
+
+1) Two global maps accompanied with adjustable timeline to display the monthly cases of death and new cases for each nation.
+https://rviews.rstudio.com/2019/10/09/building-interactive-world-maps-in-shiny/#:~:text=Creating%20an%20interactive%20world%20map&text=The%20inputs%20to%20this%20function,the%20aesthetics%20of%20the%20plot.
+
+2) Two scatter plots exploring the degree of different actions taken by each government and the correlated new cases/population proportion in 2021.
+
+```{r setup, warning = FALSE, error = FALSE, message = FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if(!require(magrittr)) install.packages("magrittr", repos = "http://cran.us.r-project.org")
+if(!require(rvest)) install.packages("rvest", repos = "http://cran.us.r-project.org")
+if(!require(readxl)) install.packages("readxl", repos = "http://cran.us.r-project.org")
+if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(maps)) install.packages("maps", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if(!require(shiny)) install.packages("shiny", repos = "http://cran.us.r-project.org")
+if(!require(ggiraph)) install.packages("ggiraph", repos = "http://cran.us.r-project.org")
+if(!require(RColorBrewer)) install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+if(!require(countrycode)) install.packages("countrycode", repos = "http://cran.us.r-project.org")
+if(!require(wbstats)) install.packages("wbstats", repos = "http://cran.us.r-project.org")
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+```
+##reading in all datasets
+```{r}
+world_covid_data <- read.csv('./Dataset/full_data.csv')
+world_pop_data <- read.csv('./Dataset/master_location_pop_table.csv')
+gov_re_data <- read.csv('./Dataset/OxCGRT_latest.csv')
+#colnames(gov_re_data)
+```
+
+
+##Import iso3 to match countries
+```{r, warning = FALSE, message = FALSE}
+library(magrittr)
+library(rvest)
+library(countrycode)
+iso_codes = countrycode::codelist[, c("un.name.en", "iso3c")]
+names(iso_codes) = c("Country", "ISO3")
+```
+
+##Get the world data with geograpical coordinates directly from package *ggplot2*
+```{r, warning = FALSE, message = FALSE}
+library(maps)
+library(ggplot2)
+world_data <- ggplot2::map_data('world')
+world_data <- fortify(world_data)
+world_data$region[world_data$region == 'USA'] <- 'United States of America'
+world_data["ISO3"] <- iso_codes$ISO3[match(world_data$region, iso_codes$Country)]
+```
+
+
+##Clean all three data sets and make new ones, preparing to combine them
+```{r}
+#processing world_pop_data
+world_pop_data_clean <- world_pop_data %>%
+ #select(-c(country_alpha_3_code:county_fips_number, data_source_name, geo_location)) %>%
+  group_by(country_short_name) %>%
+  summarise(geo_latitude = mean(geo_latitude), 
+            geo_longitude = mean(geo_longitude), 
+            geo_region_population_count = sum(geo_region_population_count)) %>%
+  rename('country' = 'country_short_name')
+# Only kept 'geo_latitude', 'geo_longitude' and 'geo_region_population_count', all changed to national level. Other data excluded.
+
+####################
+
+#processing world_covid_data
+total_covid_death <- world_covid_data %>%
+  group_by(location) %>%
+  reframe(total_deaths = sum(new_deaths, na.rm = TRUE)) %>%
+  rename('country' = 'location')
+total_covid_death[total_covid_death == 0] <- NA
+# the total number of death for each country
+
+monthly_new_covid <- world_covid_data %>%
+  mutate(Period = paste(substr(date, 1, 4), 
+                      substr(date, 6, 7), 
+                      sep = '')) %>%
+  group_by(location, Period) %>%
+  reframe('Cases'= sum(new_cases, na.rm = TRUE), 
+          'Deaths' = sum(new_deaths, na.rm = TRUE)) %>%
+  rename('Country' = 'location')
+
+monthly_new_covid[monthly_new_covid == 0] <- NA
+monthly_new_covid["Deaths in thousands"] <- monthly_new_covid$Deaths/1000
+monthly_new_covid["Cases in ten thousands"] <- monthly_new_covid$Cases/10000
+# new cases and new death are adjusted to monthly level with 'location' and 'month', other numbers all excluded.
+# this data frame still contain data at levels other than national. These data will keep remain here until I match the 'location' in in this data frame with 'country_short_name' in world_pop_data_clean. 'location' not included in 'country_short_name' will be excluded since latitude and longitude are required to plot the global map.
+
+####################
+
+#processing gov_re_data
+gov_policies_eval <- gov_re_data %>%
+  group_by(CountryName) %>%
+  reframe(testing_policy = mean(H2_Testing.policy, na.rm = TRUE), 
+          vaccination_policy = mean(H7_Vaccination.policy, na.rm = TRUE)) %>%
+  rename('country' = 'CountryName')
+gov_policies_eval[gov_policies_eval == 0] <- NA
+# I arbitrarily choose only to look at the effects of testing policy and vaccination policy for each country.
+
+####################
+
+#'country' not existed in 'world_pop_data_clean' will be excluded
+
+# In 'total_covid_death', exclude observations that has 'country' not in 'world_pop_data_clean'
+total_covid_death <- total_covid_death %>%
+  filter(country %in% world_pop_data_clean$country)
+
+# In 'monthly_new_covid', exclude observations that has 'country' not in 'world_pop_data_clean'
+monthly_new_covid <- monthly_new_covid %>%
+  filter(Country %in% world_data$region)
+
+# In 'gov_policies_eval', exclude observations that has 'country' not in 'world_pop_data_clean'
+gov_policies_eval <- gov_policies_eval %>%
+  filter(country %in% world_pop_data_clean$country)
+
+# Feed back all the three cleaned data sets to 'world_pop_data_clean' so all four data sets have identical 'country' entries
+world_pop_data_clean <- world_pop_data_clean %>%
+  filter(country %in% gov_policies_eval$country) %>%
+  filter(country %in% total_covid_death$country)
+```
+
+##Combine different data sets
+```{r}
+# create a new data frame named covid_death_with_policy that have total_covid_death and gov_policies_eval combined
+covid_death_with_policy <- total_covid_death %>%
+  # Adding in world_pop_data_clean
+  merge(world_pop_data_clean, by = 'country') %>%
+  # Adding in gov_policies_eval
+  merge(gov_policies_eval, by = 'country') %>%
+  # Death are adjusted to death per million
+  mutate(death_per_m = (total_deaths/geo_region_population_count)*1000000) %>%
+  filter(not(death_per_m %in% Inf)) %>%
+  # Exclude useless columns
+  select(-c(total_deaths, geo_region_population_count, geo_latitude, geo_longitude)) %>%
+  # Rounding decimals to increase readability
+  mutate(across(where(is.numeric), ~round(., 2))) %>%
+  mutate(death_per_m = round(.$death_per_m, 0))
+
+####################
+
+# create a new data frame about monthly covid death and cases
+df <- monthly_new_covid %>%
+  pivot_longer(cols = c('Cases in ten thousands', 'Deaths in thousands'), names_to = 'DataType') %>%
+  rename('Value' = 'value')
+
+df['ISO3'] <- iso_codes$ISO3[match(df$Country, iso_codes$Country)]
+
+# Until now, all data processing have ended. All data frames are cleans. 
+# The two of them I will be using to draw plots are 'monthly_covid_data' and 'covid_death_with_policy'
+```
+
+## Creating an interactive world map
+```{r, warning = FALSE, message = FALSE}
+worldMaps <- function(df, world_data, data_type, period){
+  
+  # Function for setting the aesthetics of the plot
+  my_theme <- function () { 
+    theme_bw() + theme(axis.title = element_blank(),
+                       axis.text = element_blank(),
+                       axis.ticks = element_blank(),
+                       panel.grid.major = element_blank(), 
+                       panel.grid.minor = element_blank(),
+                       panel.background = element_blank(), 
+                       legend.position = "bottom",
+                       panel.border = element_blank(), 
+                       strip.background = element_rect(fill = 'white', colour = 'white'))
+  }
+  
+  # Select only the data that the user has selected to view
+  plotdf <- df[df$DataType == data_type & df$Period == period,]
+  plotdf <- plotdf[!is.na(plotdf$ISO3), ]
+  
+  # Add the data the user wants to see to the geographical world data
+  world_data['DataType'] <- rep(data_type, nrow(world_data))
+  world_data['Period'] <- rep(period, nrow(world_data))
+  world_data['Value'] <- plotdf$Value[match(world_data$ISO3, plotdf$ISO3)]
+  
+  # Create caption with the data source to show underneath the map
+  capt <- paste0("Source: data.world")
+  
+  # Specify the plot for the world map
+  library(RColorBrewer)
+  library(ggiraph)
+  g <- ggplot() + 
+    geom_polygon_interactive(data = subset(world_data, lat >= -60 & lat <= 90), color = 'gray70', size = 0.1,
+                                    aes(x = long, y = lat, fill = Value, group = group, 
+                                        tooltip = sprintf("%s<br/>%s", ISO3, Value))) + 
+    scale_fill_gradientn(colours = brewer.pal(5, "Reds"), na.value = 'white') + 
+    labs(fill = data_type, color = data_type, title = NULL, x = NULL, y = NULL, caption = capt) + 
+    my_theme()
+  
+  return(g)
+}
+```
+
+## Building an R Shiny app
+```{r, warning = FALSE, message = FALSE}
+library(shiny)
+library(ggiraph)
+shinyApp(
+  
+  # Define the UI
+  ui = fluidPage(
+    
+    # App title
+    titlePanel("Montly COVID-19 Cases and Deaths Data"),
+    
+    # Sidebar layout with input and output definitions
+    sidebarLayout(
+      
+      # Sidebar panel for inputs 
+      sidebarPanel(
+        
+        # First input: Type of data
+        selectInput(inputId = "data_type",
+                    label = "Choose the type of COVID-19 data you want to see:",
+                    choices = list("Cases in ten thousands" = "Cases in ten thousands", "Deaths in thousands" = "Deaths in thousands")),
+        
+        # Second input (choices depend on the choice for the first input)
+        uiOutput("secondSelection"),
+        
+      ),
+      
+      # Main panel for displaying outputs
+      mainPanel(
+        
+        # # Hide errors
+        # tags$style(type = "text/css",
+        #            ".shiny-output-error { visibility: hidden; }",
+        #            ".shiny-output-error:before { visibility: hidden; }"),
+        
+        # Output: interactive world map
+        girafeOutput("distPlot")
+        
+      )
+    )
+  ),
+  
+  # Define the server
+  server = function(input, output) {
+    
+    # Create the interactive world map
+    output$distPlot <- renderGirafe({
+      ggiraph(code = print(worldMaps(df, world_data, input$data_type, input$period)))
+    })
+    
+    # Change the choices for the second selection on the basis of the input to the first selection
+    output$secondSelection <- renderUI({
+      choice_second <- as.list(unique(df$Period[which(df$DataType == input$data_type)]))
+      selectInput(inputId = "period", choices = choice_second,
+                  label = "Choose the period for which you want to see the data:")
+    })
+  },
+   
+  options = list(height = 600)
+  
+)
+```
+
+Finally, we can run our app by either clicking "Run App" in the top of our RStudio IDE, or by running
+```{r, eval = FALSE}
+shinyApp(ui = ui, server = server)
+```
