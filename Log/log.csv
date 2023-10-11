@@ -1,0 +1,14 @@
+Time,Descrpition
+"2023-09-02 10:20PM-10:40PM	",Two datasets selected from https://data.world/ that are related to COVID-19:  https://data.world/markmarkoh/coronavirus-data/workspace/file?filename=full_data.csv and https://data.world/covid-19-data-resource-hub/covid-19-activity-location-population-table/workspace/file?filename=Master+Location+Pop+Table.csv
+2023-09-09 10:00AM-10:40AM,Another dataset related to COVID-19 was selected: https://data.world/jiraphan-masuk/coronavirus-government-response-tracker/workspace/file?filename=OxCGRT_latest.csv
+2023-09-10 01:30PM-03:00PM, All three datasets are imported into R and two of them processed to get rid of most of the useless data.
+2023-09-15 02:30PM-03:30PM," All three datasets have been cleaned and ready to combine and are filtered by country so to make that datasets that are to be combined have an identical country. Also, a description of the three original datasets was uploaded."
+2023-09-23 10:00AM-11:00AM, Datasets are merged into monthly_covid_data and covid_death_with_policy ready for plotting.
+2023-09-24 01:00PM-02:30PM ,"From https://rviews.rstudio.com/2019/10/09/building-interactive-world-maps-in-shiny/#:~:text=Creating%20an%20interactive%20world%20map&text=The%20inputs%20to%20this%20function,the%20aesthetics%20of%20the%20plot, learning how to create a interactive map.  Datasets are merged into monthly_covid_data and covid_death_with_policy ready for plotting."
+2023-09-30 09:00AM-12:00PM ,Keep figuring how to make the interactive world map working. Two more datasets was imported directly from R for the world map. Finally making the world map working. 
+2023-10-01 10:10PM-10:20PM ,A screenshot of the project uploaded.
+2023-10-03 06:00PM-08:00PM ,"Adding one extra page to the visualizations to includes two more scatter plots in one regarding COVID policies and total death (not working).  Also, countries' names are revised for various datasets so they can match better with the ISO3 standard name of countries. However, this is not thorough given the extensive number of datasets and country names to match."
+2023-10-04 06:00PM-07:30PM ,"In order to make the two scatter plots working, they are splitted into two different pages. One is about vaccination vs death, and the other one is testing vs death. "
+2023-10-05 03:10PM-05:00PM ,Creating a shinyapp.io account. Trying to figure out how to upload the visualization. Realized that R markdown file is not the proper file type to do so.
+2023-10-06 01:00PM-02:00PM ,Created a new Shiny app file that includes all the code in the original markdown file so it can be uploaded to shinyapp.io. (can't upload) Trying to figure out why not.
+2023-10-07 10:00AM-11:45AM,Making minor adjustment and correcting minor mistakes. App successfully uploaded to shinyapp.io

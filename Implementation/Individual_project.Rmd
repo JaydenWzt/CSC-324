@@ -29,6 +29,7 @@ if(!require(RColorBrewer)) install.packages("RColorBrewer", repos = "http://cran
 if(!require(countrycode)) install.packages("countrycode", repos = "http://cran.us.r-project.org")
 if(!require(wbstats)) install.packages("wbstats", repos = "http://cran.us.r-project.org")
 if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
 ```
 ##reading in all datasets
 ```{r}
@@ -54,8 +55,17 @@ library(maps)
 library(ggplot2)
 world_data <- ggplot2::map_data('world')
 world_data <- fortify(world_data)
+
 world_data$region[world_data$region == 'USA'] <- 'United States of America'
+world_data$region[world_data$region == 'UK'] <- 'United Kingdom of Great Britain and Northern Ireland'
+world_data$region[world_data$region == 'North Korea'] <- 'Democratic People’s Republic of Korea'
+world_data$region[world_data$region == 'South Korea'] <- 'Republic of Korea'
+world_data$region[world_data$region == 'Russia'] <- 'Russian Federation'
+world_data$region[world_data$region == 'Laos'] <- 'Lao People’s Democratic Republic'
+world_data$region[world_data$region == 'Iran'] <- 'Iran (Islamic Republic of)'
+
 world_data["ISO3"] <- iso_codes$ISO3[match(world_data$region, iso_codes$Country)]
+df <- world_data[!duplicated(world_data$region), ]
 ```
 
 
@@ -93,6 +103,12 @@ monthly_new_covid <- world_covid_data %>%
 monthly_new_covid[monthly_new_covid == 0] <- NA
 monthly_new_covid["Deaths in thousands"] <- monthly_new_covid$Deaths/1000
 monthly_new_covid["Cases in ten thousands"] <- monthly_new_covid$Cases/10000
+
+# Format the date_column to "Mon YYYY"
+monthly_new_covid$Period <- ym(monthly_new_covid$Period)
+monthly_new_covid$Period <- format(monthly_new_covid$Period, "%b %Y")
+
+
 # new cases and new death are adjusted to monthly level with 'location' and 'month', other numbers all excluded.
 # this data frame still contain data at levels other than national. These data will keep remain here until I match the 'location' in in this data frame with 'country_short_name' in world_pop_data_clean. 'location' not included in 'country_short_name' will be excluded since latitude and longitude are required to plot the global map.
 
@@ -144,16 +160,23 @@ covid_death_with_policy <- total_covid_death %>%
   select(-c(total_deaths, geo_region_population_count, geo_latitude, geo_longitude)) %>%
   # Rounding decimals to increase readability
   mutate(across(where(is.numeric), ~round(., 2))) %>%
-  mutate(death_per_m = round(.$death_per_m, 0))
+  mutate(death_per_m = round(.$death_per_m, 0)) 
 
+# %>%
+#   rename('Testing Policy' = 'testing_policy') %>%
+#   rename('Vaccination Policy' = 'vaccination_policy') %>%
+#   rename('Deaths per million' = 'death_per_m') %>%
+#   pivot_longer(cols = c('Testing Policy', 'Vaccination Policy'), names_to = 'DataType')
+
+write.csv(covid_death_with_policy, file = "covid_death_with_policy.csv", row.names = FALSE)
 ####################
 
 # create a new data frame about monthly covid death and cases
-df <- monthly_new_covid %>%
+monthly_new_covid <- monthly_new_covid %>%
   pivot_longer(cols = c('Cases in ten thousands', 'Deaths in thousands'), names_to = 'DataType') %>%
-  rename('Value' = 'value')
+  rename('Value' = 'value') 
 
-df['ISO3'] <- iso_codes$ISO3[match(df$Country, iso_codes$Country)]
+monthly_new_covid['ISO3'] <- iso_codes$ISO3[match(monthly_new_covid$Country, iso_codes$Country)]
 
 # Until now, all data processing have ended. All data frames are cleans. 
 # The two of them I will be using to draw plots are 'monthly_covid_data' and 'covid_death_with_policy'
@@ -203,17 +226,25 @@ worldMaps <- function(df, world_data, data_type, period){
 }
 ```
 
+
+<!-- ## Creating the two scatter Plots -->
+<!-- ```{r, warning = FALSE, message = FALSE} -->
+<!-- scatterPlots <- function(df, data_type) -->
+<!-- plotData <- df[df$DataType == data_type,] -->
+<!-- ``` -->
+
 ## Building an R Shiny app
-```{r, warning = FALSE, message = FALSE}
+```{r message=FALSE, warning=FALSE}
 library(shiny)
 library(ggiraph)
 shinyApp(
   
-  # Define the UI
-  ui = fluidPage(
+  ui = navbarPage("COVID-19 Data",
+  tabPanel("World Map",
+    fluidPage(
     
     # App title
-    titlePanel("Montly COVID-19 Cases and Deaths Data"),
+    titlePanel("Monthly COVID-19 Cases and Deaths Data"),
     
     # Sidebar layout with input and output definitions
     sidebarLayout(
@@ -222,44 +253,91 @@ shinyApp(
       sidebarPanel(
         
         # First input: Type of data
-        selectInput(inputId = "data_type",
+          selectInput(inputId = "data_type",
                     label = "Choose the type of COVID-19 data you want to see:",
                     choices = list("Cases in ten thousands" = "Cases in ten thousands", "Deaths in thousands" = "Deaths in thousands")),
-        
-        # Second input (choices depend on the choice for the first input)
-        uiOutput("secondSelection"),
+          
+          # Second input (choices depend on the choice for the first input)
+          uiOutput("secondSelection"),
         
       ),
+        
       
       # Main panel for displaying outputs
       mainPanel(
-        
-        # # Hide errors
-        # tags$style(type = "text/css",
-        #            ".shiny-output-error { visibility: hidden; }",
-        #            ".shiny-output-error:before { visibility: hidden; }"),
-        
-        # Output: interactive world map
-        girafeOutput("distPlot")
-        
+        plotOutput("distPlot")
       )
     )
+  )
   ),
+  
+  ###############################
+  
+  tabPanel("Testing vs. COVID-19 Deaths",
+    fluidPage(
+      
+      titlePanel("Correlation Between Testing Indicator and COVID-19 Death"),
+      
+        
+      # Main panel for displaying outputs
+      mainPanel(
+        plotOutput("scatterPlot1")
+      )
+  )
+  ),
+  
+  ###############################
+  tabPanel("Vaccination vs. COVID-19 Deaths",
+    fluidPage(
+      
+      titlePanel("Correlation Between Vaccination Indicator and COVID-19 Death"),
+      
+      
+      # Main panel for displaying outputs
+      mainPanel(
+        plotOutput("scatterPlot2")
+      )
+  )
+  ),
+),
   
   # Define the server
   server = function(input, output) {
     
     # Create the interactive world map
     output$distPlot <- renderGirafe({
-      ggiraph(code = print(worldMaps(df, world_data, input$data_type, input$period)))
+      ggplot(code = print(worldMaps(monthly_new_covid, world_data, input$data_type, input$period)))
     })
     
     # Change the choices for the second selection on the basis of the input to the first selection
     output$secondSelection <- renderUI({
-      choice_second <- as.list(unique(df$Period[which(df$DataType == input$data_type)]))
+      choice_second <- as.list(unique(monthly_new_covid$Period[which(monthly_new_covid$DataType == input$data_type)]))
       selectInput(inputId = "period", choices = choice_second,
                   label = "Choose the period for which you want to see the data:")
     })
+    
+    output$scatterPlot1 <- renderPlot({
+    ggplot(covid_death_with_policy, aes(x = testing_policy, 
+                       y = death_per_m)) + 
+      geom_point() + 
+      theme_minimal() +
+      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      xlab("Testing Policy") +
+      ylab("Deaths per Million") +
+      labs(caption = "Source: data.world")
+})
+    
+    output$scatterPlot2 <- renderPlot({
+    ggplot(covid_death_with_policy, aes(x = vaccination_policy,
+                       y = death_per_m)) + 
+      geom_point() + 
+      theme_minimal() +
+      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      xlab("Vaccination Policy") +
+      ylab("Deaths per Million") +
+      labs(caption = "Source: data.world")
+  })
+    
   },
    
   options = list(height = 600)
